@@ -1,0 +1,122 @@
+---
+title: "Electric Vehicles"
+date: "June 20, 2024"
+format: 
+  dashboard:
+    orientation: columns
+server: shiny
+---
+
+```{r}
+#| context: setup
+library(ggplot2)
+library(plotly)
+library(dplyr)
+library(scales)
+library(shiny)
+library(shinyWidgets)
+ev <- readRDS("./data/electric_vehicle_eu.rds")
+```
+
+## {.sidebar}
+
+```{r}
+#| label: sidebar
+sliderInput(
+    inputId = 'price',
+    label = 'Price',
+    min = 15000,
+    max = 150000,
+    value = c(15000, 150000),
+    step = 10000,
+    round = 0
+)
+
+selectInput(
+    inputId = "manufacturer",
+    label = "Manufacturer:",
+    choices = sort(unique(ev$manufacturer)),
+    multiple = T,
+    selected = c("Ford", "Honda", "Hyundai", "Kia", "Mazda", "Nissan", "Subaru", "Tesla", "Toyota", "Volkswagon"),
+    selectize = T
+)
+
+
+selectInput(
+    inputId = 'n_passenger',
+    label = "No. Passengers:",
+    choices = sort(unique(ev$n_passenger)),
+    selected = 5
+)
+
+selectInput(
+    inputId = "var",
+    label = "Variable:",
+    choices = c("acceleration", "battery_size", "charge", "efficiency", "range", "top_speed"),
+    selected = "acceleration"
+)
+
+
+```
+
+
+<hr>
+    
+### Resources:
+- [Electric Vehicle Charging Explained](https://www.nrdc.org/stories/electric-vehicle-charging-explained?gad_source=1&gclid=CjwKCAjw7NmzBhBLEiwAxrHQ-bL8_XJxVQ_rgMDEztIPiKKRXhJHZvLhiTLt4aSNel8A9kw1adsLYBoCxS4QAvD_BwE)
+
+# Plot
+
+```{r}
+plotlyOutput('plot')
+#tableOutput('model')
+```
+
+# Data
+
+```{r}
+tableOutput('data')
+```
+
+```{r}
+#| context: server
+
+dataset <- reactive({
+  ev |> 
+        filter(price >= input$price[[1]] & price <= input$price[[2]]) |> 
+        filter(n_passenger == input$n_passenger) |> 
+        filter(manufacturer %in% input$manufacturer)
+})
+
+formulaText <- reactive({ 
+    paste("price ~ ", input$var)
+    })
+
+
+output$plot <- renderPlotly({
+    fig <- plot_ly(
+        data = dataset(), 
+        y = ~price, 
+        x = as.formula(paste0("~", input$var)),
+        text = ~paste('Manufacturer: ', manufacturer, 
+                     '<br>Model: ', model,
+                     '<br>Price: $', price,
+                     '<br>', as.formula(paste0("~", input$var)), ': ', dataset()[[input$var]]), 
+        hoverinfo = 'text',
+        type = 'scatter', 
+        color = ~manufacturer,
+        mode = "markers",
+        marker = list(size = 11)
+        )
+    fig <- fig %>% layout(
+        title = list(text = 'Electric Vehicles in EU <br><a href=https://ev-database.org/>https://ev-database.org/</a>'),
+        font = list(size = 16),
+        margin = list(t = 160, b = 160)
+    )
+    fig
+})
+
+output$data <- renderTable({
+  dataset()
+})
+```
